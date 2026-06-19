@@ -4,53 +4,60 @@ import { mockSKUs, mockBatches } from '@/data/mockData';
 import { allocateFIFO, deductStock } from '@/utils/fifoEngine';
 import { generateId, calculateExpiryStatus, calculateDaysRemaining, getSkuTotalStock } from '@/utils/inventoryCalculator';
 
-function generateExpiryAlerts(batches: Batch[], skus: { id: string; name: string }[]): Alert[] {
+function createExpiryAlert(batch: Batch, skuName: string): Alert | null {
+  if (batch.isFrozen) return null;
+  const status = calculateExpiryStatus(batch.expiryDate);
+  const days = calculateDaysRemaining(batch.expiryDate);
   const now = new Date().toISOString();
+
+  if (status === 'expired') {
+    return {
+      id: generateId(),
+      type: 'expiry_expired',
+      level: 'error',
+      title: `${skuName} 批次已过期`,
+      message: `批次 ${batch.batchNo} 已过期 ${Math.abs(days)} 天，${batch.availableQuantity} 件不可出库，请尽快处理`,
+      batchId: batch.id,
+      skuId: batch.skuId,
+      isRead: false,
+      createdAt: now,
+    };
+  } else if (status === 'urgent') {
+    return {
+      id: generateId(),
+      type: 'expiry_urgent',
+      level: 'urgent',
+      title: `${skuName} 批次紧急临期`,
+      message: `批次 ${batch.batchNo} 剩余仅 ${days} 天，${batch.availableQuantity} 件需立即处理`,
+      batchId: batch.id,
+      skuId: batch.skuId,
+      isRead: false,
+      createdAt: now,
+    };
+  } else if (status === 'approaching') {
+    return {
+      id: generateId(),
+      type: 'expiry_warning',
+      level: 'warning',
+      title: `${skuName} 批次临期预警`,
+      message: `批次 ${batch.batchNo} 剩余 ${days} 天，${batch.availableQuantity} 件需关注`,
+      batchId: batch.id,
+      skuId: batch.skuId,
+      isRead: false,
+      createdAt: now,
+    };
+  }
+  return null;
+}
+
+function generateExpiryAlerts(batches: Batch[], skus: { id: string; name: string }[]): Alert[] {
   const alerts: Alert[] = [];
 
   for (const batch of batches) {
-    if (batch.isFrozen) continue;
     const sku = skus.find(s => s.id === batch.skuId);
     const skuName = sku?.name || batch.skuId;
-    const days = calculateDaysRemaining(batch.expiryDate);
-
-    if (batch.status === 'expired') {
-      alerts.push({
-        id: generateId(),
-        type: 'expiry_expired',
-        level: 'error',
-        title: `${skuName} 批次已过期`,
-        message: `批次 ${batch.batchNo} 已过期 ${Math.abs(days)} 天，${batch.availableQuantity} 件不可出库，请尽快处理`,
-        batchId: batch.id,
-        skuId: batch.skuId,
-        isRead: false,
-        createdAt: now,
-      });
-    } else if (batch.status === 'urgent') {
-      alerts.push({
-        id: generateId(),
-        type: 'expiry_urgent',
-        level: 'urgent',
-        title: `${skuName} 批次紧急临期`,
-        message: `批次 ${batch.batchNo} 剩余仅 ${days} 天，${batch.availableQuantity} 件需立即处理`,
-        batchId: batch.id,
-        skuId: batch.skuId,
-        isRead: false,
-        createdAt: now,
-      });
-    } else if (batch.status === 'approaching') {
-      alerts.push({
-        id: generateId(),
-        type: 'expiry_warning',
-        level: 'warning',
-        title: `${skuName} 批次临期预警`,
-        message: `批次 ${batch.batchNo} 剩余 ${days} 天，${batch.availableQuantity} 件需关注`,
-        batchId: batch.id,
-        skuId: batch.skuId,
-        isRead: false,
-        createdAt: now,
-      });
-    }
+    const alert = createExpiryAlert(batch, skuName);
+    if (alert) alerts.push(alert);
   }
 
   return alerts;
@@ -76,7 +83,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   },
 
   inbound: (skuId: string, batchData: Omit<Batch, 'id' | 'skuId' | 'status'>) => {
-    const { batches, skus } = get();
+    const { batches, skus, alerts } = get();
     const now = new Date().toISOString();
     const status = calculateExpiryStatus(batchData.expiryDate);
 
@@ -86,6 +93,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
     let updatedBatches: Batch[];
     let logMessage: string;
+    let newBatch: Batch | null = null;
 
     if (existingBatch) {
       updatedBatches = batches.map(b => {
@@ -100,7 +108,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       });
       logMessage = `批次 ${batchData.batchNo} 追加入库 ${batchData.quantity} 件`;
     } else {
-      const newBatch: Batch = {
+      newBatch = {
         ...batchData,
         id: generateId(),
         skuId,
@@ -132,10 +140,21 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
       createdAt: now
     };
 
+    let updatedAlerts = alerts;
+    if (newBatch) {
+      const sku = skus.find(s => s.id === skuId);
+      const skuName = sku?.name || skuId;
+      const alert = createExpiryAlert(newBatch, skuName);
+      if (alert) {
+        updatedAlerts = [alert, ...alerts];
+      }
+    }
+
     set({
       batches: updatedBatches,
       skus: updatedSKUs,
-      operationLogs: [log, ...get().operationLogs]
+      operationLogs: [log, ...get().operationLogs],
+      alerts: updatedAlerts
     });
   },
 

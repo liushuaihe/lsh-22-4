@@ -23,22 +23,26 @@ export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps)
 
   const skuUnreadAlerts = alerts.filter(a => a.skuId === sku.id && !a.isRead).length;
 
-  const hasUrgent = urgentStock > 0 || expiredStock > 0;
+  const hasExpired = expiredStock > 0;
+  const hasUrgent = urgentStock > 0;
   const hasWarning = approachingStock > 0 || frozenStock > 0;
 
   const getCardStyle = () => {
+    if (hasExpired) return 'bg-gradient-to-br from-red-900/10 to-transparent border-red-800/30';
     if (hasUrgent) return 'bg-gradient-to-br from-amber-900/10 to-transparent border-amber-800/30';
     if (hasWarning) return 'bg-gradient-to-br from-orange-900/10 to-transparent border-orange-800/30';
     return 'bg-slate-800/50 border-slate-700 hover:border-slate-600';
   };
 
   const getIconStyle = () => {
+    if (hasExpired) return 'bg-red-500/20 border border-red-500/30';
     if (hasUrgent) return 'bg-amber-500/20 border border-amber-500/30';
     if (hasWarning) return 'bg-orange-500/20 border border-orange-500/30';
     return 'bg-cyan-500/20 border border-cyan-500/30';
   };
 
   const getIconColor = () => {
+    if (hasExpired) return 'text-red-400';
     if (hasUrgent) return 'text-amber-400';
     if (hasWarning) return 'text-orange-400';
     return 'text-cyan-400';
@@ -58,10 +62,13 @@ export function SKUCard({ sku, batches, previewAllocations = [] }: SKUCardProps)
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-semibold text-slate-100">{sku.name}</h3>
-                {hasUrgent && (
+                {hasExpired && (
+                  <XCircle size={14} className="text-red-400 animate-pulse" />
+                )}
+                {!hasExpired && hasUrgent && (
                   <Zap size={14} className="text-amber-400 animate-pulse" />
                 )}
-                {!hasUrgent && hasWarning && (
+                {!hasExpired && !hasUrgent && hasWarning && (
                   <AlertTriangle size={14} className="text-orange-400" />
                 )}
                 {skuUnreadAlerts > 0 && (

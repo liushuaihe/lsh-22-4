@@ -93,29 +93,31 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
     let updatedBatches: Batch[];
     let logMessage: string;
-    let newBatch: Batch | null = null;
+    let batchToAlert: Batch | null = null;
 
     if (existingBatch) {
       updatedBatches = batches.map(b => {
         if (b.id === existingBatch.id) {
-          return {
+          const updated = {
             ...b,
             quantity: b.quantity + batchData.quantity,
             availableQuantity: b.availableQuantity + batchData.quantity
           };
+          batchToAlert = updated;
+          return updated;
         }
         return b;
       });
       logMessage = `批次 ${batchData.batchNo} 追加入库 ${batchData.quantity} 件`;
     } else {
-      newBatch = {
+      batchToAlert = {
         ...batchData,
         id: generateId(),
         skuId,
         status,
         createdAt: now
       };
-      updatedBatches = [...batches, newBatch];
+      updatedBatches = [...batches, batchToAlert];
       logMessage = `新批次 ${batchData.batchNo} 入库 ${batchData.quantity} 件`;
     }
 
@@ -141,10 +143,10 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     };
 
     let updatedAlerts = alerts;
-    if (newBatch) {
+    if (batchToAlert) {
       const sku = skus.find(s => s.id === skuId);
       const skuName = sku?.name || skuId;
-      const alert = createExpiryAlert(newBatch, skuName);
+      const alert = createExpiryAlert(batchToAlert, skuName);
       if (alert) {
         updatedAlerts = [alert, ...alerts];
       }

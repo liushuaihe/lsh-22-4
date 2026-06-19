@@ -19,7 +19,8 @@ export function AlertCenter() {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const unreadCount = alerts.filter(a => !a.isRead).length;
-  const urgentCount = alerts.filter(a => (a.type === 'expiry_urgent' || a.type === 'expiry_expired') && !a.isRead).length;
+  const urgentCount = alerts.filter(a => a.type === 'expiry_urgent' && !a.isRead).length;
+  const expiredCount = alerts.filter(a => a.type === 'expiry_expired' && !a.isRead).length;
 
   const getColorClasses = (color: string) => {
     switch (color) {
@@ -80,6 +81,12 @@ export function AlertCenter() {
           </div>
           <h3 className="text-lg font-semibold text-slate-100">告警中心</h3>
           <span className="text-xs text-slate-400">共 {alerts.length} 条</span>
+          {expiredCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
+              <ShieldAlert size={10} />
+              {expiredCount} 条过期
+            </span>
+          )}
           {urgentCount > 0 && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">
               <Zap size={10} />
@@ -124,16 +131,19 @@ export function AlertCenter() {
                 const config = typeConfig[alert.type] || { icon: Info, color: 'blue', label: '通知' };
                 const colors = getColorClasses(config.color);
                 const Icon = config.icon;
-                const isUrgentCard = alert.type === 'expiry_urgent' || alert.type === 'expiry_expired';
+                const isUrgentCard = alert.type === 'expiry_urgent';
+                const isExpiredCard = alert.type === 'expiry_expired';
 
                 return (
                   <div
                     key={alert.id}
                     className={`p-3 rounded-lg border transition-all duration-200 ${colors.bg} ${colors.border} ${
                       !alert.isRead
-                        ? isUrgentCard
-                          ? 'ring-2 ring-amber-500/40 animate-pulse'
-                          : 'ring-2 ring-cyan-500/30'
+                        ? isExpiredCard
+                          ? 'ring-2 ring-red-500/40 animate-pulse'
+                          : isUrgentCard
+                            ? 'ring-2 ring-amber-500/40 animate-pulse'
+                            : 'ring-2 ring-cyan-500/30'
                         : 'opacity-70'
                     }`}
                     onClick={() => !alert.isRead && markAlertRead(alert.id)}
@@ -146,6 +156,12 @@ export function AlertCenter() {
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <h4 className="text-sm font-medium text-slate-200 flex items-center gap-2">
                             {alert.title}
+                            {isExpiredCard && !alert.isRead && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/30 text-red-300 border border-red-500/40 uppercase tracking-wider">
+                                <ShieldAlert size={8} />
+                                EXPIRED
+                              </span>
+                            )}
                             {isUrgentCard && !alert.isRead && (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/30 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
                                 <Zap size={8} />
@@ -153,7 +169,7 @@ export function AlertCenter() {
                               </span>
                             )}
                           </h4>
-                          {!alert.isRead && !isUrgentCard && (
+                          {!alert.isRead && !isUrgentCard && !isExpiredCard && (
                             <span className="w-2 h-2 bg-cyan-400 rounded-full flex-shrink-0 animate-pulse" />
                           )}
                         </div>
